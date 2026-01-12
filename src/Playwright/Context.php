@@ -45,6 +45,7 @@ final class Context
 
         $frameGuid = '';
         $pageGuid = '';
+        $videoRecordingGuid = null;
 
         /** @var array{method: string|null, params: array{type: string|null, guid: string, initializer: array{url: string}}, result: array{page: array{guid: string|null}}} $message */
         foreach ($response as $message) {
@@ -55,9 +56,22 @@ final class Context
             if (isset($message['result']['page']['guid'])) {
                 $pageGuid = $message['result']['page']['guid'];
             }
+
+            if(($message['params']['type'] ?? null) === 'Artifact' && isset($message['params']['initializer']['absolutePath'])) {
+                $videoRecordingGuid = $message['params']['guid'];
+            }
         }
 
-        return new Page($this, $pageGuid, $frameGuid);
+        $messageCount = 0;
+        while($videoRecordingGuid === null && $messageCount++ < 3){
+            $message = Client::instance()->getMessageOffWebsocket();
+            if(($message['params']['type'] ?? null) === 'Artifact' && isset($message['params']['initializer']['absolutePath'])) {
+                $videoRecordingGuid = $message['params']['guid'];
+            }
+        }
+
+
+        return new Page($this, $pageGuid, $frameGuid, $videoRecordingGuid);
     }
 
     /**

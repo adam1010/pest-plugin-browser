@@ -39,6 +39,7 @@ final class Page
         private readonly Context $context,
         private readonly string $guid,
         private readonly string $frameGuid,
+        private readonly string|null $videoRecordingGuid = null,
     ) {
         //
     }
@@ -689,5 +690,29 @@ final class Page
         if ($openDiff) {
             Shell::open($imageDiffViewPath);
         }
+    }
+
+    public function getVideoRecording(): string | null {
+        if($this->videoRecordingGuid === null){
+            return null;
+        }
+
+        // Context must be closed first so that the video is finalized
+        if($this->context->isClosed() === false){
+            $this->context->close();
+        }
+
+        $response = Client::instance()->execute($this->videoRecordingGuid, "saveAsStream");
+        $streamGuid = null;
+        foreach($response as $message){
+            if(($message['params']['type'] ?? null) == 'Stream'){
+                $streamGuid = $message['params']['guid'];
+            }
+        }
+
+        $response = Client::instance()->execute($streamGuid, "read");
+        $bytesBase64 = $this->processBinaryResponse($response);
+
+        return base64_decode($bytesBase64);
     }
 }

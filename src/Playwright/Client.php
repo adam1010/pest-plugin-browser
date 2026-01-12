@@ -63,6 +63,25 @@ final class Client
         }
     }
 
+    public function getMessageOffWebsocket(): array|null{
+        assert($this->websocketConnection instanceof WebsocketConnection, 'WebSocket client is not connected.');
+
+        $responseJson = $this->fetch($this->websocketConnection);
+        /** @var array{id: string|null, params: array{add: string|null}, error: array{error: array{message: string|null}}} $response */
+        $response = json_decode($responseJson, true);
+
+        if (isset($response['error']['error']['message'])) {
+            $message = $response['error']['error']['message'];
+
+            if (str_contains($message, 'Playwright was just installed or updated')) {
+                throw new PlaywrightOutdatedException();
+            }
+
+            throw new ExpectationFailedException($message);
+        }
+
+        return $response;
+    }
     /**
      * Executes a method on the Playwright instance.
      *
@@ -87,19 +106,7 @@ final class Client
         $this->websocketConnection->sendText($requestJson);
 
         while (true) {
-            $responseJson = $this->fetch($this->websocketConnection);
-            /** @var array{id: string|null, params: array{add: string|null}, error: array{error: array{message: string|null}}} $response */
-            $response = json_decode($responseJson, true);
-
-            if (isset($response['error']['error']['message'])) {
-                $message = $response['error']['error']['message'];
-
-                if (str_contains($message, 'Playwright was just installed or updated')) {
-                    throw new PlaywrightOutdatedException();
-                }
-
-                throw new ExpectationFailedException($message);
-            }
+            $response = $this->getMessageOffWebsocket();
 
             yield $response;
 
@@ -107,7 +114,7 @@ final class Client
                 (isset($response['id']) && $response['id'] === $requestId)
                 || (isset($params['waitUntil']) && isset($response['params']['add']) && $params['waitUntil'] === $response['params']['add'])
             ) {
-                break;
+                    break;
             }
         }
     }
