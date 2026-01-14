@@ -39,7 +39,7 @@ final class Page
         private readonly Context $context,
         private readonly string $guid,
         private readonly string $frameGuid,
-        private readonly string|null $videoRecordingGuid = null,
+        private string|null $videoRecordingGuid = null,
     ) {
         //
     }
@@ -703,6 +703,8 @@ final class Page
         }
 
         $response = Client::instance()->execute($this->videoRecordingGuid, "saveAsStream");
+        $this->videoRecordingGuid = null;
+
         $streamGuid = null;
         foreach($response as $message){
             if(($message['params']['type'] ?? null) == 'Stream'){
@@ -714,5 +716,15 @@ final class Page
         $bytesBase64 = $this->processBinaryResponse($response);
 
         return base64_decode($bytesBase64);
+    }
+
+    public function saveVideoRecording(string|null $filename = null): void {
+        if ($filename === null) {
+            // @phpstan-ignore-next-line
+            $filename = str_replace('__pest_evaluable_', '', test()->name());
+        }
+
+        $bytes = $this->getVideoRecording();
+        file_put_contents(base_path("tests/Playwright/videos/" . $filename . '.webm'), $bytes);
     }
 }

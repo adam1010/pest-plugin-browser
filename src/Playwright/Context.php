@@ -19,6 +19,11 @@ final class Context
     private bool $closed = false;
 
     /**
+     * @var array<int, Page>
+     */
+    public array $openPages = [];
+
+    /**
      * Creates a new context instance.
      */
     public function __construct(
@@ -71,7 +76,10 @@ final class Context
         }
 
 
-        return new Page($this, $pageGuid, $frameGuid, $videoRecordingGuid);
+        $page = new Page($this, $pageGuid, $frameGuid, $videoRecordingGuid);
+        $this->openPages[] = $page;
+
+        return $page;
     }
 
     /**
@@ -96,6 +104,10 @@ final class Context
         }
 
         $this->closed = true;
+
+        foreach($this->openPages as $page) {
+            $page->saveVideoRecording();
+        }
     }
 
     /**
