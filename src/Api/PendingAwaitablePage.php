@@ -176,7 +176,7 @@ final class PendingAwaitablePage
             'locale' => 'en-US',
             'timezoneId' => 'UTC',
             'colorScheme' => Playwright::defaultColorScheme()->value,
-            'recordVideo' => ['dir' => '/tmp'],
+            'recordVideo' => ['dir' => '/tmp', 'size' => $this->device->context()['viewport']],
             ...$this->device->context(),
             ...$options,
         ]);
