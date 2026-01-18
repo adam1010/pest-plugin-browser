@@ -91,6 +91,8 @@ final class Context
             return;
         }
 
+        sleep(1); // Test is over, give the video one more second of length
+
         try {
             // fix this...
             $response = $this->sendMessage('close');
