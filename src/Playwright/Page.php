@@ -712,10 +712,9 @@ final class Page
             }
         }
 
-        $response = Client::instance()->execute($streamGuid, "read");
-        $bytesBase64 = $this->processBinaryResponse($response);
+        $bytes = $this->downloadBinaryStream($streamGuid);
 
-        return base64_decode($bytesBase64);
+        return $bytes;
     }
 
     public function saveVideoRecording(string|null $filename = null): void {

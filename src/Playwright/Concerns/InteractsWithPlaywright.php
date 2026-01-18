@@ -185,16 +185,24 @@ trait InteractsWithPlaywright
     /**
      * Process response and extract binary result
      */
-    private function processBinaryResponse(Generator $response): string
+    private function downloadBinaryStream(string $streamGuid): string
     {
-        /** @var array{result: array{binary: string|null}} $message */
-        foreach ($response as $message) {
-            if (isset($message['result']['binary'])) {
-                return $message['result']['binary'];
-            }
-        }
+        $binary = [];
+        $newBinary = '';
+        $chunkSize = 1048576; // size used by official Node SDK
 
-        return '';
+        do {
+            Client::instance()->sendWebsocketMessage($streamGuid, "read", ['size' => $chunkSize]);
+
+            $message = Client::instance()->getMessageOffWebsocket();
+
+            $newBinary = ($message['result']['binary'] ?? '');
+            if($newBinary !== '') {
+                $binary[] = base64_decode($newBinary);
+            }
+        } while($newBinary !== '');
+
+        return implode('', $binary);
     }
 
     /**

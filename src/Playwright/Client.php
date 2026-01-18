@@ -82,15 +82,8 @@ final class Client
 
         return $response;
     }
-    /**
-     * Executes a method on the Playwright instance.
-     *
-     * @param  array<string, mixed>  $params
-     * @param  array<string, mixed>  $meta
-     * @return Generator<array<string, mixed>>
-     */
-    public function execute(string $guid, string $method, array $params = [], array $meta = []): Generator
-    {
+
+    public function sendWebsocketMessage(string $guid, string $method, array $params = [], array $meta = []): string{
         assert($this->websocketConnection instanceof WebsocketConnection, 'WebSocket client is not connected.');
 
         $requestId = uniqid();
@@ -104,6 +97,22 @@ final class Client
         ]);
 
         $this->websocketConnection->sendText($requestJson);
+
+        return $requestId;
+    }
+
+    /**
+     * Executes a method on the Playwright instance.
+     *
+     * @param  array<string, mixed>  $params
+     * @param  array<string, mixed>  $meta
+     * @return Generator<array<string, mixed>>
+     */
+    public function execute(string $guid, string $method, array $params = [], array $meta = []): Generator
+    {
+        assert($this->websocketConnection instanceof WebsocketConnection, 'WebSocket client is not connected.');
+
+        $requestId = $this->sendWebsocketMessage($guid, $method, $params, $meta);
 
         while (true) {
             $response = $this->getMessageOffWebsocket();
