@@ -185,7 +185,7 @@ trait InteractsWithPlaywright
     /**
      * Process response and extract binary result
      */
-    private function downloadBinaryStream(string $streamGuid): string
+    public static function downloadBinaryStream(string $streamGuid): string
     {
         $binary = [];
         $newBinary = '';

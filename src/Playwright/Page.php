@@ -712,7 +712,7 @@ final class Page
             }
         }
 
-        $bytes = $this->downloadBinaryStream($streamGuid);
+        $bytes = self::downloadBinaryStream($streamGuid);
 
         return $bytes;
     }

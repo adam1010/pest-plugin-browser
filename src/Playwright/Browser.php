@@ -47,10 +47,15 @@ final class Browser
 
         $response = Client::instance()->execute($this->guid, 'newContext', $options);
 
+        $traceGuid = null;
         /** @var array{result: array{context: array{guid: string|null}}} $message */
         foreach ($response as $message) {
+            if(($message['method'] ?? null) === '__create__' && ($message['params']['type'] ?? null) === 'Tracing') {
+                $traceGuid = $message['params']['guid'];
+            }
+
             if (isset($message['result']['context']['guid'])) {
-                $context = new Context($this, $message['result']['context']['guid']);
+                $context = new Context($this, $message['result']['context']['guid'], $traceGuid);
             }
         }
 

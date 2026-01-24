@@ -28,7 +28,8 @@ final class Context
      */
     public function __construct(
         private readonly Browser $browser,
-        private readonly string $guid
+        private readonly string $guid,
+        private readonly string|null $tracingGuid = null,
     ) {
         //
     }
@@ -51,6 +52,7 @@ final class Context
         $frameGuid = '';
         $pageGuid = '';
         $videoRecordingGuid = null;
+        $traceGuid = null;
 
         /** @var array{method: string|null, params: array{type: string|null, guid: string, initializer: array{url: string}}, result: array{page: array{guid: string|null}}} $message */
         foreach ($response as $message) {
@@ -75,11 +77,41 @@ final class Context
             }
         }
 
+        // Enable Tracing  https://trace.playwright.dev/
+      Client::instance()->sendWebsocketMessage($this->tracingGuid, 'tracingStart', ['screenshots' => true,'snapshots' => true]);
+      Client::instance()->sendWebsocketMessage($this->tracingGuid, 'tracingStartChunk');
 
         $page = new Page($this, $pageGuid, $frameGuid, $videoRecordingGuid);
         $this->openPages[] = $page;
 
         return $page;
+    }
+
+    public function saveTraceFile(): void{
+      $response = Client::instance()->sendWebsocketMessage($this->tracingGuid, "tracingStopChunk", ["mode"=>"archive"]);
+
+      $artifactGuid = null;
+      while($artifactGuid === null){
+        $message = Client::instance()->getMessageOffWebsocket();
+        if($this->tracingGuid === $message['guid'] && ($message['params']['type'] ?? null) === 'Artifact') {
+            $artifactGuid = $message['params']['guid'];
+        }
+      }
+
+      $response = Client::instance()->execute($artifactGuid, "saveAsStream");
+
+      $streamGuid = null;
+      foreach($response as $message){
+        if(($message['params']['type'] ?? null) == 'Stream'){
+          $streamGuid = $message['params']['guid'];
+        }
+      }
+
+      $bytes = Page::downloadBinaryStream($streamGuid);
+
+      // @phpstan-ignore-next-line
+      $filename = str_replace('__pest_evaluable_', '', test()->name());
+      file_put_contents(base_path("tests/Playwright/videos/" . $filename . '.trace.zip'), $bytes);
     }
 
     /**
@@ -92,6 +124,7 @@ final class Context
         }
 
         sleep(1); // Test is over, give the video one more second of length
+        $this->saveTraceFile();
 
         try {
             // fix this...
