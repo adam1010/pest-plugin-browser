@@ -23,6 +23,7 @@ final readonly class Locator
         private string $frameGuid,
         private string $selector,
         private bool $strictMode = true,
+        private Page|null $page = null,
     ) {
         //
     }
@@ -782,6 +783,6 @@ final readonly class Locator
         }
         $finalParams = array_merge($defaultParams, $params);
 
-        return Client::instance()->execute($this->frameGuid, $method, $finalParams);
+        return Client::instance()->execute($this->frameGuid, $method, $finalParams, [], $this->page);
     }
 }

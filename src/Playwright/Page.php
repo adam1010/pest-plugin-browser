@@ -151,7 +151,7 @@ final class Page
      */
     public function locator(string $selector): Locator
     {
-        return new Locator($this->frameGuid, $selector, $this->strictLocators);
+        return new Locator($this->frameGuid, $selector, $this->strictLocators, $this);
     }
 
     /**

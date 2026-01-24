@@ -6,6 +6,7 @@ namespace Pest\Browser\Playwright;
 
 use Amp\Websocket\Client\WebsocketConnection;
 use Generator;
+use Pest\Browser\Exceptions\BrowserExpectationFailedException;
 use Pest\Browser\Exceptions\PlaywrightOutdatedException;
 use PHPUnit\Framework\ExpectationFailedException;
 
@@ -63,7 +64,7 @@ final class Client
         }
     }
 
-    public function getMessageOffWebsocket(): array|null{
+    public function getMessageOffWebsocket(Page|null $page = null): array|null{
         assert($this->websocketConnection instanceof WebsocketConnection, 'WebSocket client is not connected.');
 
         $responseJson = $this->fetch($this->websocketConnection);
@@ -77,7 +78,8 @@ final class Client
                 throw new PlaywrightOutdatedException();
             }
 
-            throw new ExpectationFailedException($message);
+            $ex = new ExpectationFailedException($message);
+            throw ($page === null? $ex : BrowserExpectationFailedException::from($page, $ex));
         }
 
         return $response;
@@ -108,14 +110,14 @@ final class Client
      * @param  array<string, mixed>  $meta
      * @return Generator<array<string, mixed>>
      */
-    public function execute(string $guid, string $method, array $params = [], array $meta = []): Generator
+    public function execute(string $guid, string $method, array $params = [], array $meta = [], Page|null $page = null): Generator
     {
         assert($this->websocketConnection instanceof WebsocketConnection, 'WebSocket client is not connected.');
 
         $requestId = $this->sendWebsocketMessage($guid, $method, $params, $meta);
 
         while (true) {
-            $response = $this->getMessageOffWebsocket();
+            $response = $this->getMessageOffWebsocket($page);
 
             yield $response;
 
