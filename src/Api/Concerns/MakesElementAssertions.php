@@ -39,6 +39,25 @@ trait MakesElementAssertions
     }
 
     /**
+     * Assert that the given text/regex is present on the page.
+     */
+    public function assertSeeRegex(string $regex): Webpage {
+      $locator = $this->page->locator('text=' . $regex);  // example:  /Hello World|Goodbye Globe/i
+
+      foreach ($locator->all() as $element) {
+        if ($element->isVisible()) {
+          expect(true)->toBeTrue();
+
+          return $this;
+        }
+      }
+
+      throw new ExpectationFailedException(
+        "Expected to see REGEX {$regex} on the page initially with the url [{$this->initialUrl}], but it was not found or not visible.",
+      );
+    }
+
+    /**
      * Assert that the given text is present on the page.
      */
     public function assertSee(string|int|float $text): Webpage
