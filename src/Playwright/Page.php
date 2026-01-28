@@ -13,6 +13,7 @@ use Pest\Browser\Support\Selector;
 use Pest\Browser\Support\Shell;
 use Pest\TestSuite;
 use PHPUnit\Framework\ExpectationFailedException;
+use PHPUnit\Framework\TestStatus\Failure;
 use RuntimeException;
 
 /**
@@ -721,6 +722,10 @@ final class Page
         if ($filename === null) {
             // @phpstan-ignore-next-line
             $filename = str_replace('__pest_evaluable_', '', test()->name());
+        }
+
+        if(test()->status() instanceof Failure){
+            $filename = 'FAILED_' . $filename;
         }
 
         $bytes = $this->getVideoRecording();

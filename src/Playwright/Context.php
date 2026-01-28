@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pest\Browser\Playwright;
 
 use Exception;
+use PHPUnit\Framework\TestStatus\Failure;
 
 /**
  * @internal
@@ -111,6 +112,10 @@ final class Context
 
       // @phpstan-ignore-next-line
       $filename = str_replace('__pest_evaluable_', '', test()->name());
+      if(test()->status() instanceof Failure){
+          $filename = 'FAILED_' . $filename;
+      }
+
       file_put_contents(base_path("tests/Playwright/videos/" . $filename . '.trace.zip'), $bytes);
     }
 
