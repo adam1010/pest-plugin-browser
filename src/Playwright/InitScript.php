@@ -43,6 +43,10 @@ final class InitScript
                     colno: e.colno
                 });
             });
+
+            window.alert = function(msg){
+              document.body.innerHTML = '<h1 style="font-weight:bold">alert() called but Playwright dismissed it</h1><h2>' + msg + '</h2>';
+            };
             JS;
     }
 }

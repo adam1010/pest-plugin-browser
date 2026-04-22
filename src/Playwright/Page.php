@@ -722,6 +722,10 @@ final class Page
         if ($filename === null) {
             // @phpstan-ignore-next-line
             $filename = str_replace('__pest_evaluable_', '', test()->name());
+            $filename = str_starts_with($filename, 'it_') ? substr($filename, 3) : $filename;
+            if(test()->dataName() > 0){
+                $filename . '__' . test()->dataName();
+            }
         }
 
         if(test()->status() instanceof Failure){
