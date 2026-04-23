@@ -112,6 +112,7 @@ final class Context
 
       // @phpstan-ignore-next-line
       $filename = str_replace('__pest_evaluable_', '', test()->name());
+      $filename = str_starts_with($filename, 'it_') ? substr($filename, 3) : $filename;
       if(test()->status() instanceof Failure){
           $filename = 'FAILED_' . $filename;
       }
