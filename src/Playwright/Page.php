@@ -150,9 +150,10 @@ final class Page
     /**
      * Create a locator for the specified selector.
      */
-    public function locator(string $selector): Locator
+    public function locator(string $selector, bool|null $strict = null): Locator
     {
-        return new Locator($this->frameGuid, $selector, $this->strictLocators, $this);
+        $strict ??= $this->strictLocators;
+        return new Locator($this->frameGuid, $selector, $strict, $this);
     }
 
     /**
