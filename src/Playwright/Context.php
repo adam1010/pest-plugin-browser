@@ -94,7 +94,7 @@ final class Context
       $artifactGuid = null;
       while($artifactGuid === null){
         $message = Client::instance()->getMessageOffWebsocket();
-        if($this->tracingGuid === $message['guid'] && ($message['params']['type'] ?? null) === 'Artifact') {
+        if($this->tracingGuid === ($message['guid'] ?? null) && ($message['params']['type'] ?? null) === 'Artifact') {
             $artifactGuid = $message['params']['guid'];
         }
       }
