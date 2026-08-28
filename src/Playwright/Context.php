@@ -93,7 +93,23 @@ final class Context
 
       $artifactGuid = null;
       while($artifactGuid === null){
-        $message = Client::instance()->getMessageOffWebsocket();
+        try {
+          $message = Client::instance()->getMessageOffWebsocket();
+        } catch(\Throwable $e){
+          // A stale error response from an abandoned 1000ms waitForExpectation retry
+          // ("Timeout 1000ms exceeded.") can land on the shared websocket stream
+          // during teardown. Throwing here aborts the drain before tracingStopChunk
+          // completes, leaving tracing running — every later test then fails with
+          // "Must start tracing before stopping". Skip stale timeout errors and keep
+          // draining; rethrow anything else (e.g. a tracing error) — swallowing it
+          // would leave this loop waiting forever for an Artifact that never comes.
+          if (str_contains($e->getMessage(), 'Timeout')) {
+            continue;
+          }
+
+          throw $e;
+        }
+
         if($this->tracingGuid === ($message['guid'] ?? null) && ($message['params']['type'] ?? null) === 'Artifact') {
             $artifactGuid = $message['params']['guid'];
         }
