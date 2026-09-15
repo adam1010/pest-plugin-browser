@@ -28,6 +28,13 @@ final readonly class AwaitableWebpage
         private array $nonAwaitableMethods = [
             'assertScreenshotMatches',
             'assertNoAccessibilityIssues',
+            // Navigations must run once with the full timeout. Inside the 1000ms
+            // waitForExpectation retry loop a page that takes longer than a second to
+            // reach "load" times out and is re-navigated on every retry.
+            'navigate',
+            'refresh',
+            'back',
+            'forward',
         ],
     ) {
         //

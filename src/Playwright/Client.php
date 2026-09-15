@@ -121,11 +121,13 @@ final class Client
 
             yield $response;
 
-            if (
-                (isset($response['id']) && $response['id'] === $requestId)
-                || (isset($params['waitUntil']) && isset($response['params']['add']) && $params['waitUntil'] === $response['params']['add'])
-            ) {
-                    break;
+            // Only the response carrying our request id completes the call. Treating a
+            // frame "loadstate" event that matches waitUntil as completion lets a stray
+            // load event from an unrelated frame (or a redirect the page issued itself)
+            // end the wait while goto/reload is still running server-side; its real
+            // response then lands mid-way through a later call and is thrown there.
+            if (isset($response['id']) && $response['id'] === $requestId) {
+                break;
             }
         }
     }
