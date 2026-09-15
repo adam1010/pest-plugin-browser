@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Pest\Browser\Playwright;
 
+use Amp\CancelledException;
+use Amp\TimeoutCancellation;
 use Amp\Websocket\Client\WebsocketConnection;
 use Generator;
 use Pest\Browser\Exceptions\BrowserExpectationFailedException;
@@ -26,6 +28,15 @@ final class Client
      * WebSocket client instance.
      */
     private ?WebsocketConnection $websocketConnection = null;
+
+    /**
+     * Longest wait for any single message from the Playwright server, in seconds.
+     *
+     * Every request carries its own Playwright-side timeout, so a live server always
+     * answers well within this. Only a crashed or hung server stays silent, and without
+     * this bound the read blocks until the CI job's own timeout kills it.
+     */
+    private const RECEIVE_TIMEOUT_SECONDS = 120;
 
     /**
      * Default timeout for requests in milliseconds.
@@ -121,11 +132,13 @@ final class Client
 
             yield $response;
 
-            if (
-                (isset($response['id']) && $response['id'] === $requestId)
-                || (isset($params['waitUntil']) && isset($response['params']['add']) && $params['waitUntil'] === $response['params']['add'])
-            ) {
-                    break;
+            // Only the response carrying our request id completes the call. Treating a
+            // frame "loadstate" event that matches waitUntil as completion lets a stray
+            // load event from an unrelated frame (or a redirect the page issued itself)
+            // end the wait while goto/reload is still running server-side; its real
+            // response then lands mid-way through a later call and is thrown there.
+            if (isset($response['id']) && $response['id'] === $requestId) {
+                break;
             }
         }
     }
@@ -151,6 +164,21 @@ final class Client
      */
     private function fetch(WebsocketConnection $client): string
     {
-        return (string) $client->receive()?->read();
+        try {
+            $message = $client->receive(new TimeoutCancellation(self::RECEIVE_TIMEOUT_SECONDS));
+        } catch (CancelledException) {
+            // Later calls would each wait the full timeout again; a closed connection makes them fail at once.
+            $client->close();
+
+            throw new \RuntimeException(sprintf('No message from the Playwright server for %d seconds; it has crashed or hung.', self::RECEIVE_TIMEOUT_SECONDS));
+        }
+
+        // receive() returns null once the connection is closed; there is no message to parse,
+        // so fail here with the reason instead of handing execute() an empty response.
+        if ($message === null) {
+            throw new \RuntimeException('The Playwright server closed the websocket connection.');
+        }
+
+        return (string) $message->read();
     }
 }
