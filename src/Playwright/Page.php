@@ -254,14 +254,13 @@ final class Page
         $expression = match ($state) {
             'domcontentloaded' => "() => document.readyState !== 'loading'",
             'load' => "() => document.readyState === 'complete'",
-            // ponytail: an in-flight request is invisible to the Resource Timing API until it ends, so this
-            // is "no request finished for 500ms", not Playwright's "no request open for 500ms". Past the
-            // Resource Timing buffer (250 entries by default) new requests stop showing up at all.
+            // Like Playwright's, this passes once fetch/XHR traffic has been idle for 500ms, so call it after
+            // the request starts. Images, scripts and beacons aren't counted.
             'networkidle' => <<<'JS'
                 () => {
                     if (document.readyState !== 'complete') return false;
-                    const ends = performance.getEntriesByType('resource').map(entry => entry.responseEnd);
-                    return performance.now() - Math.max(0, ...ends) >= 500;
+                    const browser = window.__pestBrowser; // undefined on a page opened without the init script
+                    return browser === undefined || (browser.openRequests === 0 && performance.now() - browser.lastNetworkActivity >= 500);
                 }
                 JS,
             default => throw new InvalidArgumentException("Unknown load state [$state]."),
