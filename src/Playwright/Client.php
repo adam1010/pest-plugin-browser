@@ -75,14 +75,18 @@ final class Client
         }
     }
 
-    public function getMessageOffWebsocket(Page|null $page = null): array|null{
+    public function getMessageOffWebsocket(Page|null $page = null, string|null $requestId = null): array|null{
         assert($this->websocketConnection instanceof WebsocketConnection, 'WebSocket client is not connected.');
 
         $responseJson = $this->fetch($this->websocketConnection);
         /** @var array{id: string|null, params: array{add: string|null}, error: array{error: array{message: string|null}}} $response */
         $response = json_decode($responseJson, true);
 
-        if (isset($response['error']['error']['message'])) {
+        // A reply left unread by an earlier call that stopped reading early belongs to that call,
+        // so its error must not fail this one.
+        $isOwnReply = $requestId === null || ($response['id'] ?? null) === $requestId;
+
+        if ($isOwnReply && isset($response['error']['error']['message'])) {
             $message = $response['error']['error']['message'];
 
             if (str_contains($message, 'Playwright was just installed or updated')) {
@@ -128,7 +132,7 @@ final class Client
         $requestId = $this->sendWebsocketMessage($guid, $method, $params, $meta);
 
         while (true) {
-            $response = $this->getMessageOffWebsocket($page);
+            $response = $this->getMessageOffWebsocket($page, $requestId);
 
             yield $response;
 
@@ -166,19 +170,20 @@ final class Client
     {
         try {
             $message = $client->receive(new TimeoutCancellation(self::RECEIVE_TIMEOUT_SECONDS));
+
+            // receive() returns null once the connection is closed; there is no message to parse,
+            // so fail here with the reason instead of handing execute() an empty response.
+            if ($message === null) {
+                throw new \RuntimeException('The Playwright server closed the websocket connection.');
+            }
+
+            // read() returns only the next frame; a large reply (a screenshot, an evaluate result) spans several.
+            return $message->buffer(new TimeoutCancellation(self::RECEIVE_TIMEOUT_SECONDS));
         } catch (CancelledException) {
             // Later calls would each wait the full timeout again; a closed connection makes them fail at once.
             $client->close();
 
             throw new \RuntimeException(sprintf('No message from the Playwright server for %d seconds; it has crashed or hung.', self::RECEIVE_TIMEOUT_SECONDS));
         }
-
-        // receive() returns null once the connection is closed; there is no message to parse,
-        // so fail here with the reason instead of handing execute() an empty response.
-        if ($message === null) {
-            throw new \RuntimeException('The Playwright server closed the websocket connection.');
-        }
-
-        return (string) $message->read();
     }
 }

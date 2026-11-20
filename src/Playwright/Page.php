@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pest\Browser\Playwright;
 
 use Generator;
+use InvalidArgumentException;
 use Pest\Browser\Execution;
 use Pest\Browser\Support\ImageDiffView;
 use Pest\Browser\Support\JavaScriptSerializer;
@@ -92,14 +93,24 @@ final class Page
      */
     public function goto(string $url, array $options = []): self
     {
-        $response = $this->sendMessage('goto', [
-            ...['url' => $url, 'waitUntil' => 'load'],
-            ...$options,
-        ]);
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                $this->processVoidResponse($this->sendMessage('goto', [
+                    ...['url' => $url, 'waitUntil' => 'load'],
+                    ...$options,
+                ]));
 
-        $this->processVoidResponse($response);
+                return $this;
+            } catch (ExpectationFailedException $e) {
+                // A page that redirects itself in JS interrupts the goto before it reaches "load".
+                $interrupted = str_contains($e->getMessage(), 'interrupted by another navigation')
+                    || str_contains($e->getMessage(), 'net::ERR_ABORTED');
 
-        return $this;
+                if (! $interrupted || $attempt === 3) {
+                    throw $e;
+                }
+            }
+        }
     }
 
     /**
@@ -238,13 +249,25 @@ final class Page
      */
     public function waitForLoadState(string $state = 'load'): self
     {
-        Client::instance()->execute(
-            $this->guid,
-            'waitForLoadState',
-            ['state' => $state]
-        );
+        // The Playwright server has no waitForLoadState command (its client library tracks load
+        // states from frame events), so wait on the page itself.
+        $expression = match ($state) {
+            'domcontentloaded' => "() => document.readyState !== 'loading'",
+            'load' => "() => document.readyState === 'complete'",
+            // ponytail: an in-flight request is invisible to the Resource Timing API until it ends, so this
+            // is "no request finished for 500ms", not Playwright's "no request open for 500ms". Past the
+            // Resource Timing buffer (250 entries by default) new requests stop showing up at all.
+            'networkidle' => <<<'JS'
+                () => {
+                    if (document.readyState !== 'complete') return false;
+                    const ends = performance.getEntriesByType('resource').map(entry => entry.responseEnd);
+                    return performance.now() - Math.max(0, ...ends) >= 500;
+                }
+                JS,
+            default => throw new InvalidArgumentException("Unknown load state [$state]."),
+        };
 
-        return $this;
+        return $this->waitForFunction($expression);
     }
 
     /**
@@ -272,13 +295,10 @@ final class Page
      */
     public function waitForURL(string $url): self
     {
-        Client::instance()->execute(
-            $this->guid,
-            'waitForURL',
-            ['url' => $url]
-        );
+        // Like waitForLoadState, this only exists in Playwright's client library.
+        $this->waitForFunction('expected => location.href === expected', $url);
 
-        return $this;
+        return $this->waitForLoadState();
     }
 
     /**
