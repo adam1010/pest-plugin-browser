@@ -23,7 +23,33 @@ final class InitScript
 
             window.__pestBrowser = {
                 jsErrors: [],
-                consoleLogs: []
+                consoleLogs: [],
+                openRequests: 0,
+                lastNetworkActivity: performance.now()
+            };
+
+            // Resource Timing only lists a request once it ends, so waitForLoadState('networkidle')
+            // counts open fetch/XHR requests itself.
+            const requestStarted = () => {
+                window.__pestBrowser.openRequests++;
+                window.__pestBrowser.lastNetworkActivity = performance.now();
+            };
+            const requestEnded = () => {
+                window.__pestBrowser.openRequests--;
+                window.__pestBrowser.lastNetworkActivity = performance.now();
+            };
+
+            const originalFetch = window.fetch;
+            window.fetch = function(...args) {
+                requestStarted();
+                return originalFetch.apply(this, args).finally(requestEnded);
+            };
+
+            const originalSend = XMLHttpRequest.prototype.send;
+            XMLHttpRequest.prototype.send = function(...args) {
+                requestStarted();
+                this.addEventListener('loadend', requestEnded, {once: true});
+                return originalSend.apply(this, args);
             };
 
             const originalConsoleLog = console.log;

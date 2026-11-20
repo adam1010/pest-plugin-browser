@@ -71,7 +71,8 @@ final class Context
 
         $messageCount = 0;
         while($videoRecordingGuid === null && $messageCount++ < 3){
-            $message = Client::instance()->getMessageOffWebsocket();
+            // Only events are read here, so there is no reply of ours for an error to belong to.
+            $message = Client::instance()->getMessageOffWebsocket(requestId: '');
             if(($message['params']['type'] ?? null) === 'Artifact' && isset($message['params']['initializer']['absolutePath'])) {
                 $videoRecordingGuid = $message['params']['guid'];
             }
@@ -88,26 +89,11 @@ final class Context
     }
 
     public function saveTraceFile(): void{
-      $response = Client::instance()->sendWebsocketMessage($this->tracingGuid, "tracingStopChunk", ["mode"=>"archive"]);
+      $requestId = Client::instance()->sendWebsocketMessage($this->tracingGuid, "tracingStopChunk", ["mode"=>"archive"]);
 
       $artifactGuid = null;
       while($artifactGuid === null){
-        try {
-          $message = Client::instance()->getMessageOffWebsocket();
-        } catch(\Throwable $e){
-          // A stale error response from an abandoned 1000ms waitForExpectation retry
-          // ("Timeout 1000ms exceeded.") can land on the shared websocket stream
-          // during teardown. Throwing here aborts the drain before tracingStopChunk
-          // completes, leaving tracing running — every later test then fails with
-          // "Must start tracing before stopping". Skip stale timeout errors and keep
-          // draining; rethrow anything else (e.g. a tracing error) — swallowing it
-          // would leave this loop waiting forever for an Artifact that never comes.
-          if (str_contains($e->getMessage(), 'Timeout')) {
-            continue;
-          }
-
-          throw $e;
-        }
+        $message = Client::instance()->getMessageOffWebsocket(requestId: $requestId);
 
         if($this->tracingGuid === ($message['guid'] ?? null) && ($message['params']['type'] ?? null) === 'Artifact') {
             $artifactGuid = $message['params']['guid'];
@@ -178,22 +164,14 @@ final class Context
     }
 
     /**
-     * Stops the trace chunk without archiving it. Tolerates the same stale timeout errors as saveTraceFile().
+     * Stops the trace chunk without archiving it.
      */
     private function discardTrace(): void
     {
         $requestId = Client::instance()->sendWebsocketMessage($this->tracingGuid, 'tracingStopChunk', ['mode' => 'discard']);
 
         do {
-            try {
-                $message = Client::instance()->getMessageOffWebsocket();
-            } catch (\Throwable $e) {
-                if (! str_contains($e->getMessage(), 'Timeout')) {
-                    throw $e;
-                }
-
-                $message = null;
-            }
+            $message = Client::instance()->getMessageOffWebsocket(requestId: $requestId);
         } while (($message['id'] ?? null) !== $requestId);
     }
 
