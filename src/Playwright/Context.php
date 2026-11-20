@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pest\Browser\Playwright;
 
 use Exception;
-use PHPUnit\Framework\TestStatus\Failure;
 
 /**
  * @internal
@@ -129,7 +128,7 @@ final class Context
       // @phpstan-ignore-next-line
       $filename = str_replace('__pest_evaluable_', '', test()->name());
       $filename = str_starts_with($filename, 'it_') ? substr($filename, 3) : $filename;
-      if(test()->status() instanceof Failure){
+      if(test()->status()->isFailure() || test()->status()->isError()){
           $filename = 'FAILED_' . $filename;
       }
 
@@ -145,8 +144,15 @@ final class Context
             return;
         }
 
-        sleep(1); // Test is over, give the video one more second of length
-        $this->saveTraceFile();
+        // Only a failure's trace and video are worth the time it takes to download them
+        $failed = test()->status()->isFailure() || test()->status()->isError();
+
+        if ($failed) {
+            sleep(1); // Test is over, give the video one more second of length
+            $this->saveTraceFile();
+        } else {
+            $this->discardTrace();
+        }
 
         try {
             // fix this...
@@ -162,9 +168,33 @@ final class Context
 
         $this->closed = true;
 
+        if (! $failed) {
+            return;
+        }
+
         foreach($this->openPages as $page) {
             $page->saveVideoRecording();
         }
+    }
+
+    /**
+     * Stops the trace chunk without archiving it. Tolerates the same stale timeout errors as saveTraceFile().
+     */
+    private function discardTrace(): void
+    {
+        $requestId = Client::instance()->sendWebsocketMessage($this->tracingGuid, 'tracingStopChunk', ['mode' => 'discard']);
+
+        do {
+            try {
+                $message = Client::instance()->getMessageOffWebsocket();
+            } catch (\Throwable $e) {
+                if (! str_contains($e->getMessage(), 'Timeout')) {
+                    throw $e;
+                }
+
+                $message = null;
+            }
+        } while (($message['id'] ?? null) !== $requestId);
     }
 
     /**
