@@ -192,9 +192,10 @@ trait InteractsWithPlaywright
         $chunkSize = 1048576; // size used by official Node SDK
 
         do {
-            Client::instance()->sendWebsocketMessage($streamGuid, "read", ['size' => $chunkSize]);
-
-            $message = Client::instance()->getMessageOffWebsocket();
+            // Events can arrive before the read's own response, so take the last message: the response
+            foreach (Client::instance()->execute($streamGuid, 'read', ['size' => $chunkSize]) as $message) {
+                //
+            }
 
             $newBinary = ($message['result']['binary'] ?? '');
             if($newBinary !== '') {

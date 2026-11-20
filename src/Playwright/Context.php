@@ -145,8 +145,15 @@ final class Context
             return;
         }
 
-        sleep(1); // Test is over, give the video one more second of length
-        $this->saveTraceFile();
+        // Only a failure's trace and video are worth the time it takes to download them
+        $failed = test()->status()->isFailure() || test()->status()->isError();
+
+        if ($failed) {
+            sleep(1); // Test is over, give the video one more second of length
+            $this->saveTraceFile();
+        } else {
+            $this->discardTrace();
+        }
 
         try {
             // fix this...
@@ -162,9 +169,33 @@ final class Context
 
         $this->closed = true;
 
+        if (! $failed) {
+            return;
+        }
+
         foreach($this->openPages as $page) {
             $page->saveVideoRecording();
         }
+    }
+
+    /**
+     * Stops the trace chunk without archiving it. Tolerates the same stale timeout errors as saveTraceFile().
+     */
+    private function discardTrace(): void
+    {
+        $requestId = Client::instance()->sendWebsocketMessage($this->tracingGuid, 'tracingStopChunk', ['mode' => 'discard']);
+
+        do {
+            try {
+                $message = Client::instance()->getMessageOffWebsocket();
+            } catch (\Throwable $e) {
+                if (! str_contains($e->getMessage(), 'Timeout')) {
+                    throw $e;
+                }
+
+                $message = null;
+            }
+        } while (($message['id'] ?? null) !== $requestId);
     }
 
     /**
