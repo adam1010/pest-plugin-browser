@@ -13,7 +13,6 @@ use Pest\Browser\Support\Selector;
 use Pest\Browser\Support\Shell;
 use Pest\TestSuite;
 use PHPUnit\Framework\ExpectationFailedException;
-use PHPUnit\Framework\TestStatus\Failure;
 use RuntimeException;
 
 /**
@@ -729,7 +728,7 @@ final class Page
             }
         }
 
-        if(test()->status() instanceof Failure){
+        if(test()->status()->isFailure() || test()->status()->isError()){
             $filename = 'FAILED_' . $filename;
         }
 

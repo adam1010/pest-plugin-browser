@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pest\Browser\Playwright;
 
 use Exception;
-use PHPUnit\Framework\TestStatus\Failure;
 
 /**
  * @internal
@@ -129,7 +128,7 @@ final class Context
       // @phpstan-ignore-next-line
       $filename = str_replace('__pest_evaluable_', '', test()->name());
       $filename = str_starts_with($filename, 'it_') ? substr($filename, 3) : $filename;
-      if(test()->status() instanceof Failure){
+      if(test()->status()->isFailure() || test()->status()->isError()){
           $filename = 'FAILED_' . $filename;
       }
 
